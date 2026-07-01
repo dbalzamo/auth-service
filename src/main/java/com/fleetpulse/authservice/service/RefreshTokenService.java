@@ -33,16 +33,16 @@ public class RefreshTokenService {
     @Transactional
     public RefreshToken rotate(String oldTokenValue) {
         RefreshToken oldToken = refreshTokenRepository.findByToken(oldTokenValue)
-                .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "Refresh token non valido"));
+                .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "error.refreshToken.invalid"));
 
         if (oldToken.isRevoked()) {
             // Riuso di un token già ruotato: possibile furto. Revoca tutto per sicurezza.
             refreshTokenRepository.revokeAllByUser(oldToken.getAccount());
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "Refresh token compromesso, sessioni revocate");
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "error.refreshToken.compromised");
         }
 
         if (oldToken.isExpired()) {
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "Refresh token scaduto");
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "error.refreshToken.expired");
         }
 
         oldToken.setRevoked(true);
@@ -55,5 +55,4 @@ public class RefreshTokenService {
     public void revokeAllForUser(Account account) {
         refreshTokenRepository.revokeAllByUser(account);
     }
-
 }

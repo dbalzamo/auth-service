@@ -50,7 +50,6 @@ public class AuthService {
                 .role(defaultRole)
                 .build();
 
-        // Nota: in un'implementazione reale i Role vanno caricati da DB, non creati al volo.
         accountRepository.save(account);
 
         return issueTokens(account);
