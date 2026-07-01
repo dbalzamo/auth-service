@@ -1,8 +1,12 @@
 spring:
   application:
     name: iam-provider
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
   datasource:
-    url: jdbc:postgresql://localhost:5432/robofleet_db
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/robofleet_db}
     username: ${DB_USERNAME:admin}
     password: ${DB_PASSWORD:admin}
   jpa:
@@ -11,13 +15,21 @@ spring:
     show-sql: false
     properties:
       hibernate:
+        default_schema: iam
         format_sql: true
+        jdbc:
+          time_zone: UTC
 
 security:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:ZmxlZXQtcHVsc2UtbG9jYWwtand0LXNlY3JldC1rZXkhIQ==}
     access-token-expiration-ms: 900000
     refresh-token-expiration-ms: 604800000
 
 server:
   port: 8081
+  servlet:
+    context-path: /iam
+
+app:
+  version: 1.0.0

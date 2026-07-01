@@ -17,13 +17,13 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
-public class RefreshToken extends Auditable{
+public class RefreshToken {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "jwt_token", nullable = false, unique = true, length = 512)
+    @Column(name = "token", nullable = false, unique = true, length = 512)
     private String token;
 
     @Column(name = "expires_at",  nullable = false)
@@ -32,6 +32,10 @@ public class RefreshToken extends Auditable{
     @Builder.Default
     @Column(name = "revoked", nullable = false)
     private boolean revoked = false;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", referencedColumnName = "id", nullable = false)

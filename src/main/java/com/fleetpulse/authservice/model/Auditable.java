@@ -28,6 +28,7 @@ public abstract class Auditable {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+
     public boolean isDeleted() {
         return deletedAt != null;
     }
