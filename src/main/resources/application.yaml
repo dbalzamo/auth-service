@@ -1,3 +1,23 @@
 spring:
   application:
-    name: auth-service
+    name: iam-provider
+  datasource:
+    url: jdbc:postgresql://localhost:5432/robofleet_db
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiration-ms: 900000
+    refresh-token-expiration-ms: 604800000
+
+server:
+  port: 8081
