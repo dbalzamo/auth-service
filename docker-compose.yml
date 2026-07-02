@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgis/postgis:16-3.4-alpine
+    platform: linux/amd64
     environment:
       POSTGRES_DB: robofleet_db
       POSTGRES_USER: admin
@@ -9,9 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fleetpulse"]
+      test: ["CMD-SHELL", "pg_isready -U admin"]
       interval: 5s
       timeout: 5s
       retries: 5
