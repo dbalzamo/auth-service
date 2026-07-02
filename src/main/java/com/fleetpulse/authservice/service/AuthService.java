@@ -1,11 +1,12 @@
 package com.fleetpulse.authservice.service;
 
-import com.fleetpulse.authservice.dto.AuthResponse;
-import com.fleetpulse.authservice.dto.LoginRequest;
-import com.fleetpulse.authservice.dto.RefreshRequest;
-import com.fleetpulse.authservice.dto.RegisterRequest;
+import com.fleetpulse.authservice.dto.response.AuthResponse;
+import com.fleetpulse.authservice.dto.request.LoginRequest;
+import com.fleetpulse.authservice.dto.request.RefreshRequest;
+import com.fleetpulse.authservice.dto.request.RegisterRequest;
 import com.fleetpulse.authservice.enums.TypeRole;
 import com.fleetpulse.authservice.exception.AuthException;
+import com.fleetpulse.authservice.mapper.AccountMapper;
 import com.fleetpulse.authservice.model.Account;
 import com.fleetpulse.authservice.model.RefreshToken;
 import com.fleetpulse.authservice.model.Role;
@@ -32,6 +33,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final MessageSource messageSource;
+    private final AccountMapper accountMapper;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -44,11 +46,9 @@ public class AuthService {
                         messageSource.getMessage("error.role.customer-missing", null, LocaleContextHolder.getLocale())
                 ));
 
-        Account account = Account.builder()
-                .email(request.email())
-                .password(passwordEncoder.encode(request.password()))
-                .role(defaultRole)
-                .build();
+        Account account = accountMapper.toEntity(request);
+        account.setPassword(passwordEncoder.encode(request.password()));
+        account.setRole(defaultRole);
 
         accountRepository.save(account);
 
@@ -79,7 +79,6 @@ public class AuthService {
     @Transactional
     public void logout(RefreshRequest request) {
         RefreshToken token = refreshTokenService.rotate(request.refreshToken());
-        // rotate() valida e ruota; per un logout vero revochiamo subito anche il nuovo token emesso
         refreshTokenService.revokeAllForUser(token.getAccount());
     }
 
@@ -88,6 +87,5 @@ public class AuthService {
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(account);
         return AuthResponse.of(accessToken, refreshToken.getToken(), jwtService.getAccessTokenExpirationMs());
     }
-
 
 }

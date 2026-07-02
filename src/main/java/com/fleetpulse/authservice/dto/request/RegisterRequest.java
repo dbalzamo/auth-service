@@ -1,4 +1,4 @@
-package com.fleetpulse.authservice.dto;
+package com.fleetpulse.authservice.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -9,11 +9,11 @@ public record RegisterRequest(
         @NotBlank(message = "{validation.email.required}")
         String email,
 
-        @NotBlank(message = "{validation.email.required}")
+        @NotBlank(message = "{validation.username.required}")
         @Size(min = 4, max = 30, message = "{validation.username.size}")
         String username,
 
-        @NotBlank(message = "{validation.email.required}")
+        @NotBlank(message = "{validation.password.required}")
         @Size(min = 8, max = 128, message = "{validation.password.size}")
         String password
 ) {}

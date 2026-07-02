@@ -1,10 +1,7 @@
 package com.fleetpulse.authservice.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -22,9 +19,9 @@ import java.util.List;
 @Entity
 @Table(name = "account", schema = "iam")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @EntityListeners(AuditingEntityListener.class)
 public class Account extends Auditable implements UserDetails {
 
@@ -42,7 +39,6 @@ public class Account extends Auditable implements UserDetails {
     private String email;
 
     @Column(name = "enabled")
-    @Builder.Default
     private boolean enabled = true;
 
 
@@ -51,7 +47,6 @@ public class Account extends Auditable implements UserDetails {
     private Role role;
 
     @OneToMany(mappedBy = "account")
-    @Builder.Default
     private List<RefreshToken>  refreshTokens = new ArrayList<>();
 
 

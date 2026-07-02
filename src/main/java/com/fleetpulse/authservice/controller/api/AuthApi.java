@@ -1,9 +1,9 @@
 package com.fleetpulse.authservice.controller.api;
 
-import com.fleetpulse.authservice.dto.AuthResponse;
-import com.fleetpulse.authservice.dto.LoginRequest;
-import com.fleetpulse.authservice.dto.RefreshRequest;
-import com.fleetpulse.authservice.dto.RegisterRequest;
+import com.fleetpulse.authservice.dto.response.AuthResponse;
+import com.fleetpulse.authservice.dto.request.LoginRequest;
+import com.fleetpulse.authservice.dto.request.RefreshRequest;
+import com.fleetpulse.authservice.dto.request.RegisterRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -17,14 +17,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import static com.fleetpulse.authservice.util.SwaggerConstant.*;
 
-@Tag(name = "Auth", description = "Endpoint di autenticazione e registrazione")
+@Tag(name = IDENTITY_ACCESS_MANAGEMENT_CONTROLLER, description = DESCRIPTION_CONTROLLER)
 @RequestMapping("/api/v1/auth")
 public interface AuthApi {
 
     @Operation(
             description = DESCRIPTION_REGISTER,
             summary = SUMMARY_REGISTER,
-            tags = {IDENTITY_AUTH_MANAGEMENT_CONTROLLER}
+            tags = {IDENTITY_ACCESS_MANAGEMENT_CONTROLLER}
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = SWAGGER_STATUS_200, description = SUCCESS),
@@ -41,7 +41,7 @@ public interface AuthApi {
     @Operation(
             description = DESCRIPTION_LOGIN,
             summary = SUMMARY_LOGIN,
-            tags = {IDENTITY_AUTH_MANAGEMENT_CONTROLLER}
+            tags = {IDENTITY_ACCESS_MANAGEMENT_CONTROLLER}
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = SWAGGER_STATUS_200, description = SUCCESS),
@@ -58,7 +58,7 @@ public interface AuthApi {
     @Operation(
             description = DESCRIPTION_REFRESH,
             summary = SUMMARY_REFRESH,
-            tags = {IDENTITY_AUTH_MANAGEMENT_CONTROLLER}
+            tags = {IDENTITY_ACCESS_MANAGEMENT_CONTROLLER}
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = SWAGGER_STATUS_200, description = SUCCESS),
@@ -75,7 +75,7 @@ public interface AuthApi {
     @Operation(
             description = DESCRIPTION_LOGOUT,
             summary = SUMMARY_LOGOUT,
-            tags = {IDENTITY_AUTH_MANAGEMENT_CONTROLLER}
+            tags = {IDENTITY_ACCESS_MANAGEMENT_CONTROLLER}
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = SWAGGER_STATUS_200, description = SUCCESS),

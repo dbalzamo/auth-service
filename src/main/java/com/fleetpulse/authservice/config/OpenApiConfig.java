@@ -14,18 +14,7 @@ import org.springframework.context.annotation.Configuration;
                 title = "IAM PROVIDER",
                 description = "AUTHENTICATION API REST",
                 version = "v1"
-        ),
-        security = {
-                @SecurityRequirement(name = "bearer-jwt")
-        }
-)
-@SecurityScheme(
-        name = "bearer-jwt",
-        description = "JWT Bearer token. Insert token as: 'Bearer &lt;JWT&gt;'.",
-        type = SecuritySchemeType.HTTP,
-        bearerFormat = "JWT",
-        scheme = "bearer",
-        in = SecuritySchemeIn.HEADER
+        )
 )
 public class OpenApiConfig {
 }

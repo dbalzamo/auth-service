@@ -1,10 +1,10 @@
 package com.fleetpulse.authservice.controller;
 
 import com.fleetpulse.authservice.controller.api.AuthApi;
-import com.fleetpulse.authservice.dto.AuthResponse;
-import com.fleetpulse.authservice.dto.LoginRequest;
-import com.fleetpulse.authservice.dto.RefreshRequest;
-import com.fleetpulse.authservice.dto.RegisterRequest;
+import com.fleetpulse.authservice.dto.response.AuthResponse;
+import com.fleetpulse.authservice.dto.request.LoginRequest;
+import com.fleetpulse.authservice.dto.request.RefreshRequest;
+import com.fleetpulse.authservice.dto.request.RegisterRequest;
 import com.fleetpulse.authservice.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

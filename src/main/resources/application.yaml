@@ -2,7 +2,7 @@ spring:
   application:
     name: iam-provider
   messages:
-    basename: messages
+    basename: i18n/messages
     encoding: UTF-8
     fallback-to-system-locale: false
   datasource:
@@ -19,6 +19,9 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+  flyway:
+    enabled: true
+    locations: db/migration
 
 security:
   jwt:

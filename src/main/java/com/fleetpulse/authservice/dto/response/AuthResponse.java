@@ -1,4 +1,4 @@
-package com.fleetpulse.authservice.dto;
+package com.fleetpulse.authservice.dto.response;
 
 public record AuthResponse(
         String accessToken,

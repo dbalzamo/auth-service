@@ -1,4 +1,4 @@
-package com.fleetpulse.authservice.dto;
+package com.fleetpulse.authservice.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 

@@ -5,7 +5,7 @@ public final class SwaggerConstant {
     private SwaggerConstant() {}
 
     //TAG CONTROLLER
-    public static final String IDENTITY_AUTH_MANAGEMENT_CONTROLLER = "Identity Authentication Management";
+    public static final String IDENTITY_ACCESS_MANAGEMENT_CONTROLLER = "Identity Access Management";
 
     //SUMMARY
     public static final String SUMMARY_REGISTER = "Register a new account";
@@ -14,6 +14,7 @@ public final class SwaggerConstant {
     public static final String SUMMARY_LOGOUT = "Invalidate current session";
 
     //DESCRIPTION
+    public static final String DESCRIPTION_CONTROLLER = "Authentication and registration endpoints REST";
     public static final String DESCRIPTION_REGISTER =
             "Creates a new account with the provided email, username and password. " +
                     "Returns an access token and a refresh token upon successful registration. " +

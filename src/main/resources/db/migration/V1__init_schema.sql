@@ -1,4 +1,4 @@
--- V1_init_schema.sql
+-- V1__init_schema.sql
 -- =============================================================
 -- Author      : Dario
 -- Created at  : 2026-06-28
