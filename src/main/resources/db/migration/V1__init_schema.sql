@@ -13,7 +13,7 @@ CREATE TABLE iam.role (
     role      VARCHAR(50) NOT NULL UNIQUE
 );
 
-INSERT INTO iam.role (role) VALUES ('admin'), ('operator'), ('customer');
+INSERT INTO iam.role (role) VALUES ('ADMIN'), ('OPERATOR'), ('CUSTOMER');
 
 CREATE TABLE iam.account (
     id         BIGSERIAL PRIMARY KEY,
