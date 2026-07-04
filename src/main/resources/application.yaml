@@ -20,14 +20,21 @@ spring:
         jdbc:
           time_zone: UTC
   flyway:
-    enabled: true
+    enabled: false
     locations: db/migration
+    default-schema: iam
 
 security:
   jwt:
     secret: ${JWT_SECRET:ZmxlZXQtcHVsc2UtbG9jYWwtand0LXNlY3JldC1rZXkhIQ==}
     access-token-expiration-ms: 900000
     refresh-token-expiration-ms: 604800000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
 
 server:
   port: 8081

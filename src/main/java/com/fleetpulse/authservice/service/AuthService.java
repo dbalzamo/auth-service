@@ -40,6 +40,9 @@ public class AuthService {
         if (accountRepository.existsByEmail(request.email())) {
             throw new AuthException(HttpStatus.CONFLICT, "error.email.already-registered");
         }
+        if (accountRepository.existsByUsername(request.username())) {
+            throw new AuthException(HttpStatus.CONFLICT, "error.username.already-registered");
+        }
 
         Role defaultRole = roleRepository.findByRoleName(TypeRole.CUSTOMER)
                 .orElseThrow(() -> new IllegalStateException(
