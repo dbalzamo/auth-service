@@ -13,6 +13,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Configurazioni generali dell'auth-service.
+ * <p>
+ * Definisce i bean condivisi da tutta l'applicazione:
+ * <ul>
+ *   <li>{@link PasswordEncoder} — BCrypt per cifrare le password</li>
+ *   <li>{@link AuthenticationManager} — gestore dell'autenticazione Spring Security</li>
+ *   <li>{@link CorsConfigurationSource} — configurazione CORS per sviluppo locale</li>
+ * </ul>
+ * </p>
+ */
 @Configuration
 @EnableConfigurationProperties(JwtProperties.class)
 public class AppConfig {

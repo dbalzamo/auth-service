@@ -19,6 +19,26 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 
+/**
+ * Configurazione della sicurezza per l'auth-service.
+ * <p>
+ * Questo e' il secondo livello di sicurezza (dopo il gateway). Mentre il gateway
+ * valida il JWT per decidere se far entrare la richiesta, qui l'auth-service:
+ * <ul>
+ *   <li>Identifica l'utente (chi e') dal token estratto da {@link JwtAuthenticationFilter}</li>
+ *   <li>Verifica che l'utente abbia i permessi necessari (tramite ruoli/authority)</li>
+ *   <li>Permette le richieste pubbliche (register, login) senza token</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Pattern utilizzato:
+ * <ul>
+ *   <li>{@code STATELESS} — nessuna sessione, ogni richiesta e' autenticata singolarmente</li>
+ *   <li>{@code DaoAuthenticationProvider} — verifica username/password tramite database</li>
+ *   <li>{@code JwtAuthenticationFilter} — intercetta ogni richiesta per validare il JWT</li>
+ * </ul>
+ * </p>
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -52,6 +72,10 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Provider che cerca l'utente nel database tramite {@link UserDetailsServiceImpl}
+     * e verifica la password con {@link PasswordEncoder}.
+     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -60,6 +84,9 @@ public class SecurityConfig {
         return provider;
     }
 
+    /**
+     * Gestisce le richieste non autenticate (401) restituendo JSON.
+     */
     @Bean
     public AuthenticationEntryPoint unauthorizedHandler() {
         return (request, response, ex) -> {
@@ -71,6 +98,9 @@ public class SecurityConfig {
         };
     }
 
+    /**
+     * Gestisce le richieste autenticate ma senza permessi (403) restituendo JSON.
+     */
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, ex) -> {

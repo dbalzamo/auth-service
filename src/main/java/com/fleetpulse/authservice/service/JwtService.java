@@ -16,16 +16,39 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Servizio per la creazione e validazione dei token JWT.
+ * <p>
+ * Utilizza la libreria JJWT (io.jsonwebtoken) per firmare i token
+ * con HMAC-SHA256. La chiave segreta e la durata sono configurate
+ * in {@link JwtProperties} (proprieta' {@code security.jwt.*}).
+ * </p>
+ * <p>
+ * L'access token contiene:
+ * <ul>
+ *   <li>{@code sub} — username dell'utente</li>
+ *   <li>{@code roles} — lista dei ruoli (es. {@code ROLE_CUSTOMER})</li>
+ *   <li>{@code iat} — data di emissione</li>
+ *   <li>{@code exp} — data di scadenza</li>
+ * </ul>
+ * </p>
+ */
 @Service
 @RequiredArgsConstructor
 public class JwtService {
 
     private final JwtProperties jwtProperties;
 
+    /**
+     * Restituisce la chiave segreta HMAC a partire dal Base64 configurato.
+     */
     private SecretKey getSigningKey(){
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.secret()));
     }
 
+    /**
+     * Genera un access token JWT per l'utente specificato.
+     */
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
 
@@ -56,6 +79,9 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    /**
+     * Verifica che il token sia valido: username corrisponde e non e' scaduto.
+     */
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
