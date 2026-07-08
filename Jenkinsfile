@@ -6,10 +6,11 @@ pipeline {
         }
     }
 
+    // Allineiamo le variabili d'ambiente con quelle del tuo application.yml
     environment {
-        SPRING_DATASOURCE_URL      = 'jdbc:postgresql://localhost:5432/robofleet_db'
-        SPRING_DATASOURCE_USERNAME = 'admin'
-        SPRING_DATASOURCE_PASSWORD = 'admin'
+        SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5432/robofleet_db'
+        DB_USERNAME           = 'admin'
+        DB_PASSWORD           = 'admin'
     }
 
     stages {
