@@ -8,8 +8,8 @@ pipeline {
 
     environment {
         SPRING_DATASOURCE_URL      = 'jdbc:postgresql://localhost:5432/robofleet_db'
-        SPRING_DATASOURCE_USERNAME = 'postgres'
-        SPRING_DATASOURCE_PASSWORD = 'postgres'
+        SPRING_DATASOURCE_USERNAME = 'admin'
+        SPRING_DATASOURCE_PASSWORD = 'admin'
     }
 
     stages {
