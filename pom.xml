@@ -88,6 +88,11 @@
             <artifactId>flyway-core</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-spatial</artifactId>
+        </dependency>
+
         <!-- OBBLIGATORIA da Flyway 7+ per PostgreSQL: il supporto Postgres è stato estratto in un modulo a parte -->
         <dependency>
             <groupId>org.flywaydb</groupId>
