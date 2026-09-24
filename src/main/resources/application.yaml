@@ -20,7 +20,7 @@ spring:
         jdbc:
           time_zone: UTC
   flyway:
-    enabled: false
+    enabled: true
     locations: db/migration
     default-schema: iam
 

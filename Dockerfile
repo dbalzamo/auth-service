@@ -7,7 +7,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Fase 2: Creazione dell'immagine finale
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 # Copia il file JAR generato dalla fase di build
 COPY --from=builder /app/target/*.jar app.jar

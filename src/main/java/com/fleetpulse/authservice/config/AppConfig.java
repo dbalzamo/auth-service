@@ -42,8 +42,9 @@ public class AppConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
-                "http://localhost:4200",
-                "http://localhost:8080"
+                "http://localhost:4200",  // ng serve (dev locale senza Docker)
+                "http://localhost:8080",  // API Gateway
+                "http://localhost:8085"   // frontend containerizzato (nginx)
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
