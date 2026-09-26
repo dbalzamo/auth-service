@@ -2,6 +2,10 @@ pipeline {
 
     agent any   // esegue direttamente nel container Jenkins (jenkins-docker-kubectl)
 
+    triggers {
+        githubPush()
+    }
+
     tools {
         // Se non già presente, Jenkins scarica e installa Maven da solo
         // al primo utilizzo (Manage Jenkins > Tools > Maven installations,
