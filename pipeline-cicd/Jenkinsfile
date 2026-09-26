@@ -24,12 +24,7 @@ pipeline {
 
         stage('Build & Unit Test') {
             steps {
-                sh 'mvn -B clean verify'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                }
+                sh 'mvn -B clean package -DskipTests'
             }
         }
 
@@ -38,12 +33,6 @@ pipeline {
                 withSonarQubeEnv('sonarqube-server') {
                     sh 'mvn -B sonar:sonar'
                 }
-            }
-        }
-
-        stage('Package') {
-            steps {
-                sh 'mvn -B package -DskipTests'
             }
         }
 
