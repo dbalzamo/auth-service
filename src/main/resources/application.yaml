@@ -1,3 +1,45 @@
 spring:
   application:
-    name: auth-service
+    name: iam-provider
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/robofleet_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: iam
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: db/migration
+    default-schema: iam
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:ZmxlZXQtcHVsc2UtbG9jYWwtand0LXNlY3JldC1rZXkhIQ==}
+    access-token-expiration-ms: 900000
+    refresh-token-expiration-ms: 604800000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+server:
+  port: 8081
+  servlet:
+    context-path: /iam
+
+app:
+  version: 1.0.0
