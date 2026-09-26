@@ -35,7 +35,7 @@ pipeline {
         stage('Quality Gate (SonarQube)') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
-                    sh 'mvn -B sonar:sonar'
+                    sh 'mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
                 }
             }
         }
