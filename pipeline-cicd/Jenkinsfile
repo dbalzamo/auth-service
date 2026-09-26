@@ -1,0 +1,77 @@
+pipeline {
+
+    agent any   // esegue direttamente nel container Jenkins (jenkins-docker-kubectl)
+
+    tools {
+        // Se non già presente, Jenkins scarica e installa Maven da solo
+        // al primo utilizzo (Manage Jenkins > Tools > Maven installations,
+        // con "Install automatically" spuntato, nome esatto: Maven-3.9)
+        maven 'Maven-3.9'
+    }
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build & Unit Test') {
+            steps {
+                sh 'mvn -B clean verify'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Quality Gate (SonarQube)') {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    sh 'mvn -B sonar:sonar'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                sh 'mvn -B package -DskipTests'
+            }
+        }
+
+        stage('Publish su Nexus') {
+            steps {
+                // settings.xml versionato nel repo (pipeline-cicd/settings.xml), con
+                // ${env.NEXUS_USER} / ${env.NEXUS_PASS} come placeholder:
+                // nessuna credenziale in chiaro nel file, Maven li risolve
+                // da solo leggendo le variabili d'ambiente a runtime.
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-deployer',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )
+                ]) {
+                    sh 'mvn -B -s pipeline-cicd/settings.xml deploy -DskipTests'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Artefatto consegnato su Nexus con successo."
+        }
+        failure {
+            echo "Pipeline fallita: controllare i log dello stage in errore."
+        }
+    }
+}
