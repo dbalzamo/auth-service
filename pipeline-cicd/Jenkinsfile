@@ -1,23 +1,25 @@
 pipeline {
     agent any   // esegue direttamente nel container Jenkins (jenkins-docker-kubectl)
+
     tools {
         // Se non già presente, Jenkins scarica e installa Maven da solo
         // al primo utilizzo (Manage Jenkins > Tools > Maven installations,
         // con "Install automatically" spuntato, nome esatto: Maven-3.9)
         maven 'Maven-3.9'
     }
+
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
-    stages {
+    environment {
+        DOCKER_REGISTRY = 'host.docker.internal:8082'
+        IMAGE_NAME = 'auth-service'
+        IMAGE_TAG = "develop-${BUILD_NUMBER}"
+    }
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+    stages {
 
         stage('Build & Unit Test') {
             steps {
@@ -25,7 +27,7 @@ pipeline {
             }
             post {
                 always {
-                    junit '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -62,19 +64,41 @@ pipeline {
             }
         }
 
-        stage('Build & Push Docker image') {
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} . '
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                    trivy image \
+                      --scanners vuln \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 0 \
+                      ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Docker Push to Nexus') {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'nexus-deployer',
+                        credentialsId: 'nexus-docker',
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
                     )
                 ]) {
                     sh '''
-                        docker build -t localhost:8082/auth-service:${BUILD_NUMBER} .
-                        echo "$NEXUS_PASS" | docker login localhost:8082 -u "$NEXUS_USER" --password-stdin
-                        docker push localhost:8082/auth-service:${BUILD_NUMBER}
+                        echo "$NEXUS_PASS" | docker login \
+                            ${DOCKER_REGISTRY} \
+                            -u "$NEXUS_USER" \
+                            --password-stdin
+
+                        docker push \
+                            ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                     '''
                 }
             }
