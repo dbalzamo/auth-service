@@ -1,18 +1,11 @@
 pipeline {
-
     agent any   // esegue direttamente nel container Jenkins (jenkins-docker-kubectl)
-
-    triggers {
-        githubPush()
-    }
-
     tools {
         // Se non già presente, Jenkins scarica e installa Maven da solo
         // al primo utilizzo (Manage Jenkins > Tools > Maven installations,
         // con "Install automatically" spuntato, nome esatto: Maven-3.9)
         maven 'Maven-3.9'
     }
-
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
@@ -28,7 +21,12 @@ pipeline {
 
         stage('Build & Unit Test') {
             steps {
-                sh 'mvn -B clean package -DskipTests'
+                sh 'mvn -B clean verify'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
@@ -40,7 +38,13 @@ pipeline {
             }
         }
 
-        stage('Publish su Nexus') {
+        stage('Package') {
+            steps {
+                sh 'mvn -B package -DskipTests'
+            }
+        }
+
+        stage('Publish artefatto su Nexus') {
             steps {
                 // settings.xml versionato nel repo (pipeline-cicd/settings.xml), con
                 // ${env.NEXUS_USER} / ${env.NEXUS_PASS} come placeholder:
@@ -57,11 +61,30 @@ pipeline {
                 }
             }
         }
+
+        stage('Build & Push Docker image') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-deployer',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )
+                ]) {
+                    sh '''
+                        docker build -t localhost:8082/auth-service:${BUILD_NUMBER} .
+                        echo "$NEXUS_PASS" | docker login localhost:8082 -u "$NEXUS_USER" --password-stdin
+                        docker push localhost:8082/auth-service:${BUILD_NUMBER}
+                    '''
+                }
+            }
+        }
+
     }
 
     post {
         success {
-            echo "Artefatto consegnato su Nexus con successo."
+            echo "Pipeline completata: artefatto e immagine pubblicati."
         }
         failure {
             echo "Pipeline fallita: controllare i log dello stage in errore."
