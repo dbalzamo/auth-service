@@ -62,7 +62,7 @@ pipeline {
 
         // Percorso del report Trivy, riusato tra lo stage di scan e
         // l'archiviazione dell'artifact.
-        TRIVY_REPORT = 'trivy-report.json'
+        TRIVY_REPORT_FILE = 'trivy-report.json'
 
         // Namespace e nome del Deployment target su Kubernetes, usati nello
         // stage di deploy finale.
@@ -246,7 +246,7 @@ pipeline {
                         --severity HIGH,CRITICAL \
                         --exit-code 0 \
                         --format json \
-                        --output ${TRIVY_REPORT} \
+                        --output ${TRIVY_REPORT_FILE} \
                         ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                 '''
                 // '--exit-code 0' = la scansione non fa mai fallire lo stage,
@@ -260,7 +260,7 @@ pipeline {
                 // Salviamo il report come artifact Jenkins: senza questo,
                 // il risultato della scansione esiste solo nel log della
                 // console e si perde quando i log vengono ruotati.
-                archiveArtifacts artifacts: "${TRIVY_REPORT}", allowEmptyArchive: true
+                archiveArtifacts artifacts: "${TRIVY_REPORT_FILE}", allowEmptyArchive: true
             }
         }
 
