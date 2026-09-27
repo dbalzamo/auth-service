@@ -3,6 +3,7 @@
 // ----------------------------------------------------------------------------
 // Flusso: Build & Test -> Analisi qualità (SonarCloud) -> Publish JAR (Nexus)
 //         -> Build immagine Docker -> Scan sicurezza (Trivy) -> Push immagine
+//         -> Deploy su Kubernetes (Minikube)
 //
 // ============================================================================
 
@@ -62,6 +63,11 @@ pipeline {
         // Percorso del report Trivy, riusato tra lo stage di scan e
         // l'archiviazione dell'artifact.
         TRIVY_REPORT = 'trivy-report.json'
+
+        // Namespace e nome del Deployment target su Kubernetes, usati nello
+        // stage di deploy finale.
+        K8S_NAMESPACE  = 'fleet-pulse'
+        K8S_DEPLOYMENT = 'auth-service'
     }
 
     stages {
@@ -283,6 +289,62 @@ pipeline {
                 }
             }
         }
+
+        // ====================================================================
+        // Deploy su Kubernetes (Minikube)
+        // ----------------------------------------------------------------------------
+        // Jenkins gira in un container Docker separato da Minikube (anch'esso
+        // un container, driver 'docker'). Il kubeconfig di Minikube ('~/.kube/config',
+        // montato in sola lettura su '/var/jenkins_home/.kube') contiene però
+        // indirizzi e path pensati per essere letti dall'host Mac, non da dentro
+        // il container Jenkins. Prima di usarlo dobbiamo adattarlo al volo:
+        //
+        //   1. host: 127.0.0.1 -> host.docker.internal
+        //      (Minikube pubblica l'API server come porta sull'host; da dentro
+        //      il container Jenkins, 127.0.0.1 punterebbe al container stesso)
+        //
+        //   2. path dei certificati: /Users/<utente>/.minikube -> /var/jenkins_home/.minikube
+        //      (il kubeconfig referenzia i certificati con path assoluti
+        //      dell'host; li riscriviamo sul path dove abbiamo montato la
+        //      cartella '.minikube' dentro il container)
+        //
+        //   3. tls-server-name: localhost
+        //      (il certificato TLS di Minikube è valido per 'localhost',
+        //      'minikube', '127.0.0.1', ecc. ma non per 'host.docker.internal'.
+        //      Forziamo la verifica del certificato su un nome valido, pur
+        //      mantenendo la connessione reale su host.docker.internal)
+        //
+        // NOTA: la porta dell'API server (es. 49790) cambia a ogni riavvio di
+        // Minikube ('minikube stop' / 'minikube start'). Rigenerando il
+        // kubeconfig a ogni run della pipeline (invece di hardcodare la porta),
+        // questo stage resta valido anche dopo un riavvio del cluster.
+        // ====================================================================
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                    set -e
+
+                    sed \
+                        -e 's#127.0.0.1#host.docker.internal#' \
+                        -e 's#/Users/dariobalzamo/.minikube#/var/jenkins_home/.minikube#g' \
+                        -e '/certificate-authority:/a\\    tls-server-name: localhost' \
+                        /var/jenkins_home/.kube/config > /tmp/kubeconfig
+
+                    export KUBECONFIG=/tmp/kubeconfig
+
+                    kubectl set image deployment/${K8S_DEPLOYMENT} \
+                        ${K8S_DEPLOYMENT}=${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                        -n ${K8S_NAMESPACE}
+
+                    # 'rollout status' aspetta che il nuovo pod sia Ready prima
+                    # di considerare lo stage riuscito. Senza questo, la
+                    # pipeline segnerebbe SUCCESS anche se il nuovo pod va in
+                    # CrashLoopBackOff subito dopo il deploy.
+                    kubectl rollout status deployment/${K8S_DEPLOYMENT} \
+                        -n ${K8S_NAMESPACE} --timeout=120s
+                '''
+            }
+        }
     }
 
     // ============================================================
@@ -302,6 +364,9 @@ pipeline {
 
             Docker image:
                 ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+
+            Deploy:
+                ${K8S_DEPLOYMENT} aggiornato su namespace ${K8S_NAMESPACE}
             """
         }
 
