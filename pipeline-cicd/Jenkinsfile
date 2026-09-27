@@ -1,45 +1,111 @@
+// ============================================================================
+// PIPELINE: auth-service CI/CD
+// ----------------------------------------------------------------------------
+// Flusso: Build & Test -> Analisi qualità (SonarCloud) -> Publish JAR (Nexus)
+//         -> Build immagine Docker -> Scan sicurezza (Trivy) -> Push immagine
+//
+// ============================================================================
+
 pipeline {
 
+    // 'agent any' = la pipeline può girare su qualsiasi executor/nodo Jenkins
+    // disponibile. In setup più grandi si usa spesso un agent specifico
+    // (es. un label per nodi con Docker installato) per garantire che i tool
+    // richiesti (docker, trivy, maven) siano presenti su quel nodo.
     agent any
 
+    // Tool configurati centralmente in Jenkins (Manage Jenkins > Tools).
+    // Usare 'tools{}' invece di un path hardcoded rende la pipeline portabile
+    // tra ambienti diversi: se sposti il job su un altro nodo con una
+    // installazione Maven diversa, basta che il nome logico 'Maven-3.9'
+    // esista anche lì.
     tools {
         maven 'Maven-3.9'
     }
 
     options {
+        // Aggiunge il timestamp a ogni riga di log: utile per capire quanto
+        // dura ogni stage e per il debug di problemi di performance.
         timestamps()
+
+        // Mantiene solo le ultime 20 build (log + metadata). Senza questo,
+        // Jenkins accumula storico all'infinito e occupa disco. Non pulisce
+        // però le immagini Docker locali: quello va gestito separatamente
+        // (vedi post action 'cleanWs' più sotto, se abilitata).
         buildDiscarder(logRotator(numToKeepStr: '20'))
+
+        // Evita che due build dello stesso job partano in parallelo sullo
+        // stesso branch: previene race condition su Nexus/Docker registry
+        // (es. due push quasi simultanei con lo stesso tag).
+        disableConcurrentBuilds()
+
+        // Timeout globale di sicurezza: se per qualche motivo la pipeline si
+        // blocca (es. un comando resta in attesa di input), non resta
+        // "agganciata" all'infinito occupando un executor Jenkins.
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     environment {
+        // Variabili centralizzate: se cambi registry o nome immagine, lo fai
+        // in un solo punto invece di doverlo cercare in ogni stage.
         DOCKER_REGISTRY = 'host.docker.internal:8082'
-        IMAGE_NAME = 'auth-service'
+        IMAGE_NAME       = 'auth-service'
+
+        // NB: il tag è legato al BUILD_NUMBER. Questo è corretto per una
+        // build lineare "avanti", ma ha un limite: se usi "Restart from
+        // Stage" partendo da uno stage successivo al Docker Build, il tag
+        // con il BUILD_NUMBER corrente non esiste ancora in locale, perché
+        // il Docker Build (che lo crea) è stato saltato. In quel caso
+        // l'unica soluzione è rilanciare una build completa.
         IMAGE_TAG = "develop-${BUILD_NUMBER}"
+
+        // Percorso del report Trivy, riusato tra lo stage di scan e
+        // l'archiviazione dell'artifact.
+        TRIVY_REPORT = 'trivy-report.json'
     }
 
     stages {
 
-        // ============================================================
-        // CI
-        // ============================================================
-
+        // ====================================================================
+        // CI: Build & Unit Test
+        // ====================================================================
         stage('Build & Unit Test') {
             steps {
+                // 'clean verify' compila, esegue i test e produce il jar.
+                // '-B' (batch mode) disattiva output interattivo/colorato,
+                // rendendo il log più pulito e adatto a essere letto da CI.
                 sh 'mvn -B clean verify'
             }
 
             post {
+                // 'always' gira sia in caso di successo che di fallimento
+                // dello stage: vogliamo comunque i risultati dei test per
+                // capire cosa è andato storto.
                 always {
+                    // 'allowEmptyResults: true' evita che la pipeline vada in
+                    // errore se non ci sono ancora test scritti (utile in
+                    // fase iniziale di un progetto). Da rimuovere/mettere a
+                    // false quando il progetto avrà una suite di test reale,
+                    // per essere sicuri che i test vengano davvero eseguiti.
                     junit allowEmptyResults: true,
                           testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
+        // ====================================================================
+        // Analisi statica del codice
+        // ====================================================================
         stage('SonarCloud Analysis') {
             steps {
+                // 'withSonarQubeEnv' inietta automaticamente le variabili
+                // d'ambiente (token, URL server) configurate in Jenkins per
+                // il server logico 'sonarqube-server' (Manage Jenkins >
+                // System > SonarQube servers). Così non hai credenziali
+                // hardcoded nello script.
                 withSonarQubeEnv('sonarqube-server') {
                     sh '''
+                        set -e
                         mvn -B \
                             org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar
                     '''
@@ -47,25 +113,44 @@ pipeline {
             }
         }
 
+        // ====================================================================
+        // Quality Gate
+        // ====================================================================
         stage('SonarCloud Quality Gate') {
             steps {
+                // NOTA IMPORTANTE (webhook vs polling):
+                // 'waitForQualityGate()' può funzionare in due modi:
+                //  1) Webhook: SonarCloud notifica Jenkins non appena
+                //     l'analisi è pronta -> risposta quasi istantanea.
+                //     Su SonarCloud i webhook sono disponibili solo nei
+                //     piani Team/Enterprise, non nel piano Free.
+                //  2) Polling: se non c'è webhook, Jenkins interroga
+                //     periodicamente l'API SonarCloud finché il risultato
+                //     non è pronto o scatta il timeout sotto. Più lento ma
+                //     funziona comunque, nessuna configurazione aggiuntiva
+                //     necessaria.
                 timeout(time: 5, unit: 'MINUTES') {
                     script {
-
                         def qualityGate = waitForQualityGate()
 
                         if (qualityGate.status == 'OK') {
-
                             echo "Quality Gate PASSED: ${qualityGate.status}"
-
                         } else {
-
+                            // Scelta progettuale: NON blocchiamo la pipeline
+                            // (niente 'error()'), ma marchiamo la build come
+                            // UNSTABLE invece di lasciarla SUCCESS. Questo è
+                            // importante: un semplice echo di warning non è
+                            // visibile nella dashboard Jenkins, nei badge o
+                            // nelle notifiche. UNSTABLE invece si vede a
+                            // colpo d'occhio (icona giallo/arancione) pur
+                            // senza bloccare il flusso.
+                            currentBuild.result = 'UNSTABLE'
                             echo """
                             WARNING: SonarCloud Quality Gate non superato.
                             Status: ${qualityGate.status}
 
-                            La pipeline continua perché il Quality Gate
-                            è attualmente configurato in modalità non bloccante.
+                            La pipeline continua in modalità non bloccante,
+                            ma la build è marcata UNSTABLE per visibilità.
                             """
                         }
                     }
@@ -73,14 +158,16 @@ pipeline {
             }
         }
 
-        // ============================================================
-        // ARTIFACT PREPARATION
-        // ============================================================
-
+        // ====================================================================
+        // Preparazione metadati artifact
+        // ====================================================================
         stage('Prepare Artifact') {
             steps {
                 script {
-
+                    // Estraiamo artifactId e version direttamente dal POM
+                    // invece di scriverli a mano nella pipeline: se cambi
+                    // versione nel pom.xml, la pipeline si aggiorna da sola
+                    // senza bisogno di toccare il Jenkinsfile.
                     env.ARTIFACT_ID = sh(
                         script: 'mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout',
                         returnStdout: true
@@ -91,21 +178,21 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    env.JAR_FILE =
-                        "target/${env.ARTIFACT_ID}-${env.PROJECT_VERSION}.jar"
+                    env.JAR_FILE = "target/${env.ARTIFACT_ID}-${env.PROJECT_VERSION}.jar"
 
                     echo "Artifact: ${env.JAR_FILE}"
                 }
             }
         }
 
-
-        // ============================================================
-        // ARTIFACT PUBLISH
-        // ============================================================
-
+        // ====================================================================
+        // Publish del JAR su Nexus (repository Maven)
+        // ====================================================================
         stage('Publish JAR to Nexus') {
             steps {
+                // 'withCredentials' inietta le credenziali SOLO all'interno
+                // di questo blocco e le maschera automaticamente nei log
+                // (compare '****' invece della password in chiaro).
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'nexus-deployer',
@@ -114,6 +201,7 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        set -e
                         mvn -B \
                             -s pipeline-cicd/settings.xml \
                             deploy:deploy-file \
@@ -126,14 +214,13 @@ pipeline {
             }
         }
 
-
-        // ============================================================
-        // CONTAINER
-        // ============================================================
-
+        // ====================================================================
+        // Build immagine Docker
+        // ====================================================================
         stage('Docker Build') {
             steps {
                 sh '''
+                    set -e
                     docker build \
                         -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
                         .
@@ -141,28 +228,39 @@ pipeline {
             }
         }
 
-
-        // ============================================================
-        // SECURITY
-        // ============================================================
-
+        // ====================================================================
+        // Scansione vulnerabilità immagine
+        // ====================================================================
         stage('Trivy Scan') {
             steps {
                 sh '''
+                    set -e
                     trivy image \
                         --scanners vuln \
                         --severity HIGH,CRITICAL \
                         --exit-code 0 \
+                        --format json \
+                        --output ${TRIVY_REPORT} \
                         ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                 '''
+                // '--exit-code 0' = la scansione non fa mai fallire lo stage,
+                // qualunque cosa trovi. Scelta voluta in questa fase per non
+                // bloccarti mentre stai ancora costruendo la pipeline; in
+                // produzione, tipicamente si passa a '--exit-code 1' (o si
+                // usa una soglia più selettiva) per bloccare davvero il
+                // rilascio di immagini con vulnerabilità critiche non
+                // accettabili.
+
+                // Salviamo il report come artifact Jenkins: senza questo,
+                // il risultato della scansione esiste solo nel log della
+                // console e si perde quando i log vengono ruotati.
+                archiveArtifacts artifacts: "${TRIVY_REPORT}", allowEmptyArchive: true
             }
         }
 
-
-        // ============================================================
-        // IMAGE PUBLISH
-        // ============================================================
-
+        // ====================================================================
+        // Push immagine su Nexus (registry Docker)
+        // ====================================================================
         stage('Docker Push to Nexus') {
             steps {
                 withCredentials([
@@ -173,6 +271,7 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        set -e
                         echo "$NEXUS_PASS" | docker login \
                             ${DOCKER_REGISTRY} \
                             --username "$NEXUS_USER" \
@@ -186,11 +285,12 @@ pipeline {
         }
     }
 
-
     // ============================================================
     // POST ACTIONS
+    // ------------------------------------------------------------
+    // Girano sempre al termine della pipeline, indipendentemente da
+    // dove si trovava l'esecuzione quando è terminata.
     // ============================================================
-
     post {
 
         success {
@@ -205,14 +305,32 @@ pipeline {
             """
         }
 
+        // 'unstable' è un post-condition separato da 'success': senza
+        // questo blocco, una build UNSTABLE (es. Quality Gate non passato)
+        // cadrebbe comunque nel ramo 'success' più sotto se non gestita,
+        // perdendo visibilità sul warning.
+        unstable {
+            echo 'Pipeline completata con WARNING: controllare il Quality Gate SonarCloud.'
+        }
+
         failure {
             echo 'Pipeline fallita: controllare lo stage in errore.'
         }
 
         always {
+            // Logout defensivo: '|| true' evita che un logout fallito
+            // (es. sessione già scaduta) faccia fallire l'intera pipeline
+            // proprio nell'ultimo passo.
             sh '''
                 docker logout ${DOCKER_REGISTRY} || true
             '''
+
+            // Pulizia opzionale delle immagini Docker locali intermedie
+            // (dangling, cioè senza tag) per non far crescere all'infinito
+            // lo spazio disco del nodo Jenkins. Non tocca le immagini
+            // taggate (quindi non rimuove le immagini di build precedenti
+            // ancora utili).
+            sh 'docker image prune -f || true'
         }
     }
 }
