@@ -1,10 +1,8 @@
 pipeline {
-    agent any   // esegue direttamente nel container Jenkins (jenkins-docker-kubectl)
+
+    agent any
 
     tools {
-        // Se non già presente, Jenkins scarica e installa Maven da solo
-        // al primo utilizzo (Manage Jenkins > Tools > Maven installations,
-        // con "Install automatically" spuntato, nome esatto: Maven-3.9)
         maven 'Maven-3.9'
     }
 
@@ -21,37 +19,93 @@ pipeline {
 
     stages {
 
+        // ============================================================
+        // CI
+        // ============================================================
+
         stage('Build & Unit Test') {
             steps {
                 sh 'mvn -B clean verify'
             }
+
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true,
+                          testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('Quality Gate (SonarQube)') {
+        stage('SonarCloud Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
-                    sh 'mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar'
+                    sh '''
+                        mvn -B \
+                            org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar
+                    '''
                 }
             }
         }
 
-        stage('Package') {
+        stage('SonarCloud Quality Gate') {
             steps {
-                sh 'mvn -B package -DskipTests'
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+
+                        def qualityGate = waitForQualityGate()
+
+                        if (qualityGate.status == 'OK') {
+
+                            echo "Quality Gate PASSED: ${qualityGate.status}"
+
+                        } else {
+
+                            echo """
+                            WARNING: SonarCloud Quality Gate non superato.
+                            Status: ${qualityGate.status}
+
+                            La pipeline continua perché il Quality Gate
+                            è attualmente configurato in modalità non bloccante.
+                            """
+                        }
+                    }
+                }
             }
         }
 
-        stage('Publish artefatto su Nexus') {
+        // ============================================================
+        // ARTIFACT PREPARATION
+        // ============================================================
+
+        stage('Prepare Artifact') {
             steps {
-                // settings.xml versionato nel repo (pipeline-cicd/settings.xml), con
-                // ${env.NEXUS_USER} / ${env.NEXUS_PASS} come placeholder:
-                // nessuna credenziale in chiaro nel file, Maven li risolve
-                // da solo leggendo le variabili d'ambiente a runtime.
+                script {
+
+                    env.ARTIFACT_ID = sh(
+                        script: 'mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout',
+                        returnStdout: true
+                    ).trim()
+
+                    env.PROJECT_VERSION = sh(
+                        script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout',
+                        returnStdout: true
+                    ).trim()
+
+                    env.JAR_FILE =
+                        "target/${env.ARTIFACT_ID}-${env.PROJECT_VERSION}.jar"
+
+                    echo "Artifact: ${env.JAR_FILE}"
+                }
+            }
+        }
+
+
+        // ============================================================
+        // ARTIFACT PUBLISH
+        // ============================================================
+
+        stage('Publish JAR to Nexus') {
+            steps {
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'nexus-deployer',
@@ -59,34 +113,61 @@ pipeline {
                         passwordVariable: 'NEXUS_PASS'
                     )
                 ]) {
-                    sh 'mvn -B -s pipeline-cicd/settings.xml deploy -DskipTests'
+                    sh '''
+                        mvn -B \
+                            -s pipeline-cicd/settings.xml \
+                            deploy:deploy-file \
+                            -Dfile="${JAR_FILE}" \
+                            -DpomFile=pom.xml \
+                            -DrepositoryId=nexus-snapshots \
+                            -Durl=http://host.docker.internal:8081/repository/maven-snapshots/
+                    '''
                 }
             }
         }
 
+
+        // ============================================================
+        // CONTAINER
+        // ============================================================
+
         stage('Docker Build') {
             steps {
-                sh 'docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} . '
+                sh '''
+                    docker build \
+                        -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                        .
+                '''
             }
         }
+
+
+        // ============================================================
+        // SECURITY
+        // ============================================================
 
         stage('Trivy Scan') {
             steps {
                 sh '''
                     trivy image \
-                      --scanners vuln \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 0 \
-                      ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                        --scanners vuln \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                 '''
             }
         }
+
+
+        // ============================================================
+        // IMAGE PUBLISH
+        // ============================================================
 
         stage('Docker Push to Nexus') {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'nexus-docker',
+                        credentialsId: 'nexus-deployer',
                         usernameVariable: 'NEXUS_USER',
                         passwordVariable: 'NEXUS_PASS'
                     )
@@ -94,22 +175,44 @@ pipeline {
                     sh '''
                         echo "$NEXUS_PASS" | docker login \
                             ${DOCKER_REGISTRY} \
-                            -u "$NEXUS_USER" \
+                            --username "$NEXUS_USER" \
                             --password-stdin
 
-                        docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push \
+                            ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                     '''
                 }
             }
         }
     }
 
+
+    // ============================================================
+    // POST ACTIONS
+    // ============================================================
+
     post {
+
         success {
-            echo "Pipeline completata: artefatto e immagine pubblicati."
+            echo """
+            Pipeline completata con successo.
+
+            Maven artifact:
+                ${ARTIFACT_ID}:${PROJECT_VERSION}
+
+            Docker image:
+                ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+            """
         }
+
         failure {
-            echo "Pipeline fallita: controllare i log dello stage in errore."
+            echo 'Pipeline fallita: controllare lo stage in errore.'
+        }
+
+        always {
+            sh '''
+                docker logout ${DOCKER_REGISTRY} || true
+            '''
         }
     }
 }

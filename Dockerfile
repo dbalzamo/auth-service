@@ -1,17 +1,18 @@
-# Fase 1: Build dell'applicazione
-FROM  maven:3.9-eclipse-temurin-17 AS builder
-WORKDIR /app
-COPY pom.xml .
-COPY src ./src
+# Fase 1: Build dell'applicazione --> eseguita già durante la CI di Jenkins
+#FROM  maven:3.9-eclipse-temurin-17 AS builder
+#WORKDIR /app
+#COPY pom.xml .
+#COPY src ./src
 # Compila il progetto e crea il file JAR (escludendo i test per rapidità)
-RUN mvn clean package -DskipTests
+#RUN mvn clean package -DskipTests
 
-# Fase 2: Creazione dell'immagine finale
+# Fase 2: Creazione dell'immagine finale --> Docker recupera il .Jar da jenkins
 FROM eclipse-temurin:17-jre-jammy
+
 WORKDIR /app
-# Copia il file JAR generato dalla fase di build
-COPY --from=builder /app/target/*.jar app.jar
-# Espone la porta usata di default da Spring Boot
+
+COPY target/*.jar app.jar
+
 EXPOSE 8081
-# Avvia l'applicazione
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
